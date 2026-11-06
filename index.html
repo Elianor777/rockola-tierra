@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rockola de la Tierra · Earth Jukebox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ====== COLORES Y ESTILO GENERAL ====== */
+  :root{
+    --fondo:#0b0820; --madera:#2a1430; --neon1:#ff4fa3; --neon2:#ffb02e; --neon3:#2ee6ff;
+    --texto:#fff6e8; --suave:#c9b8d8; --cromo:#e9e4f0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(ellipse at top,#241a4d 0%,var(--fondo) 60%);color:var(--texto);
+       font-family:'Nunito',system-ui,sans-serif;min-height:100vh}
+  a{color:var(--neon3)}
+  .saltar{position:absolute;left:-999px}.saltar:focus{left:8px;top:8px;background:#000;padding:8px;z-index:9}
+  header{text-align:center;padding:18px 12px 4px}
+  h1{font-family:'Bungee',cursive;font-size:clamp(28px,5vw,52px);margin:0;letter-spacing:1px;
+     background:linear-gradient(90deg,var(--neon2),var(--neon1),var(--neon3));-webkit-background-clip:text;background-clip:text;color:transparent;
+     filter:drop-shadow(0 0 12px rgba(255,79,163,.45))}
+  header p{margin:6px 0 0;color:var(--suave)}
+
+  /* ====== EL MUEBLE DE LA ROCKOLA ====== */
+  .rockola{max-width:1080px;margin:16px auto 28px;padding:0 12px}
+  .mueble{position:relative;background:linear-gradient(180deg,#3a1d45,var(--madera) 40%,#170b1d);
+    border-radius:260px 260px 28px 28px;padding:34px 26px 26px;
+    box-shadow:0 0 0 6px #5a2e66,0 0 0 10px var(--neon1),0 0 40px 10px rgba(255,79,163,.35),0 0 90px 30px rgba(46,230,255,.12)}
+  .arco{display:flex;justify-content:center;gap:5px;height:70px;align-items:flex-end;margin:0 auto 14px;max-width:520px}
+  .arco span{flex:1;border-radius:6px 6px 2px 2px;background:linear-gradient(0deg,var(--neon2),var(--neon1),var(--neon3));
+    height:8%;transition:height .08s linear;box-shadow:0 0 10px rgba(255,176,46,.6)}
+  .pantalla{position:relative;border-radius:18px;overflow:hidden;border:5px solid var(--cromo);background:#000;
+    box-shadow:inset 0 0 30px #000,0 0 20px rgba(46,230,255,.4)}
+  canvas#mapa{display:block;width:100%;height:auto;aspect-ratio:2/1}
+  .etiqueta{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.65);padding:6px 10px;border-radius:10px;font-size:14px;max-width:70%}
+  .etiqueta b{color:var(--neon2)}
+  .cargando{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);
+    font-family:'Bungee';font-size:20px;text-align:center;padding:20px}
+  .cargando.si{display:flex}
+
+  /* ====== DISCOS ====== */
+  h2{font-family:'Bungee';font-size:18px;margin:20px 0 10px;color:var(--neon2);letter-spacing:1px}
+  .discos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .disco{cursor:pointer;border:3px solid #6b3c78;border-radius:14px;background:linear-gradient(180deg,#fff8ec,#f1dfc4);
+    color:#2a1430;padding:10px 10px 8px;text-align:left;font:inherit;position:relative;transition:transform .1s}
+  .disco:hover{transform:translateY(-2px)}
+  .disco:focus-visible{outline:4px solid var(--neon3);outline-offset:2px}
+  .disco[aria-pressed="true"]{border-color:var(--neon1);box-shadow:0 0 0 3px var(--neon1),0 0 22px var(--neon1)}
+  .disco .cod{font-family:'Bungee';font-size:20px;color:var(--neon1)}
+  .disco .nom{display:block;font-weight:900;font-size:15px;line-height:1.15}
+  .disco .sub{display:block;font-size:12px;color:#6b4b6f}
+  .disco .vinilo{position:absolute;right:8px;top:8px;width:30px;height:30px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0 22%,#111 24% 100%);box-shadow:inset 0 0 0 2px #333}
+  .disco[aria-pressed="true"] .vinilo{animation:gira 1.2s linear infinite}
+  @keyframes gira{to{transform:rotate(360deg)}}
+
+  /* ====== CONTROLES ====== */
+  .panel{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:16px;background:rgba(0,0,0,.35);
+    border-radius:16px;padding:12px 14px;border:2px solid #5a2e66}
+  .boton{font-family:'Bungee';font-size:16px;border:none;border-radius:999px;padding:12px 22px;cursor:pointer;color:#1b0f22;
+    background:linear-gradient(180deg,var(--neon2),#ff8a00);box-shadow:0 4px 0 #a34f00}
+  .boton:active{transform:translateY(3px);box-shadow:0 1px 0 #a34f00}
+  .boton:focus-visible,.chico:focus-visible,input:focus-visible,select:focus-visible{outline:4px solid var(--neon3);outline-offset:2px}
+  .chico{font:inherit;font-weight:700;border-radius:10px;border:2px solid #7b4b88;background:#24122b;color:var(--texto);padding:8px 12px;cursor:pointer}
+  .chico[aria-pressed="true"]{background:#5a2e66;border-color:var(--neon3)}
+  label{font-weight:700;font-size:14px;display:flex;gap:6px;align-items:center}
+  input[type=range]{accent-color:var(--neon1);width:120px}
+  input[type=date],select{font:inherit;background:#24122b;color:var(--texto);border:2px solid #7b4b88;border-radius:10px;padding:6px 8px}
+
+  /* ====== INFO ====== */
+  .cols{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-top:16px}
+  @media (max-width:760px){.cols{grid-template-columns:1fr}.mueble{border-radius:120px 120px 22px 22px;padding:26px 12px 16px}}
+  .caja{background:rgba(0,0,0,.35);border:2px solid #5a2e66;border-radius:16px;padding:12px 14px}
+  .caja h3{margin:0 0 6px;font-family:'Bungee';font-size:15px;color:var(--neon3)}
+  .caja p,.caja li{font-size:15px;line-height:1.4;margin:4px 0}
+  .regla{display:flex;align-items:center;gap:8px;font-size:14px}
+  .barra{height:14px;flex:1;border-radius:8px}
+  #narracion{min-height:44px;font-size:16px}
+  #eventosLista{max-height:170px;overflow:auto;padding-left:18px;margin:4px 0}
+  .aviso{color:var(--neon2);font-weight:700}
+  footer{text-align:center;color:var(--suave);font-size:13px;padding:0 12px 30px}
+  kbd{background:#24122b;border:1px solid #7b4b88;border-radius:5px;padding:1px 6px;font-family:inherit}
+  @media (prefers-reduced-motion:reduce){.disco[aria-pressed="true"] .vinilo{animation:none}.arco span{transition:none}}
+</style>
+</head>
+<body>
+<a class="saltar" href="#controles">Saltar a los controles</a>
+<header>
+  <h1>Rockola de la Tierra</h1>
+  <p>Escucha nuestro planeta: imágenes satelitales de la NASA convertidas en música en tiempo real</p>
+</header>
+
+<main class="rockola">
+  <div class="mueble">
+    <div class="arco" id="arco" aria-hidden="true"></div>
+
+    <div class="pantalla">
+      <canvas id="mapa" width="720" height="360" role="img" aria-label="Mapa del mundo con la imagen satelital del disco elegido"></canvas>
+      <div class="etiqueta" id="etiqueta"><b>Elige un disco</b> y presiona ▶ Tocar</div>
+      <div class="cargando" id="cargando" role="status">Cargando disco desde la NASA…</div>
+    </div>
+
+    <h2 id="tit-discos">Elige un disco</h2>
+    <div class="discos" id="discos" role="group" aria-labelledby="tit-discos"></div>
+
+    <h2 id="tit-eic">Discos del EIC (catálogo de earth.gov)</h2>
+    <div class="panel" role="group" aria-labelledby="tit-eic" style="margin-top:0">
+      <label>Colección
+        <select id="eicSel" style="max-width:420px">
+          <option value="no2-monthly">NO₂: contaminación del aire (no2-monthly)</option>
+        </select>
+      </label>
+      <button class="chico" id="eicCargar">💿 Poner disco EIC</button>
+      <span id="eicEstado" aria-live="polite" style="font-size:14px">Cargando catálogo del EIC…</span>
+    </div>
+
+    <div class="panel" id="controles" role="group" aria-label="Controles de la rockola">
+      <button class="boton" id="tocar" aria-keyshortcuts="Space">▶ Tocar</button>
+      <label>Fecha <input type="date" id="fecha"></label>
+      <label>Velocidad <input type="range" id="tempo" min="60" max="200" value="110" aria-describedby="tempoTxt"> <span id="tempoTxt">110</span></label>
+      <label>Volumen <input type="range" id="volumen" min="0" max="100" value="70"></label>
+      <label>Escala
+        <select id="escala">
+          <option value="mayor">Alegre (pentatónica mayor)</option>
+          <option value="menor">Misteriosa (pentatónica menor)</option>
+        </select>
+      </label>
+      <button class="chico" id="btnEventos" aria-pressed="true">🔔 Eventos en vivo</button>
+      <button class="chico" id="btnNarrador" aria-pressed="false">🗣️ Narrador</button>
+      <button class="chico" id="btnDescribir">📝 Describir imagen</button>
+    </div>
+  </div>
+
+  <div class="cols">
+    <section class="caja" aria-labelledby="t-oye">
+      <h3 id="t-oye">¿Qué estoy escuchando?</h3>
+      <p id="explica">Cada disco es una capa de datos de la NASA. Una línea recorre el mapa de oeste a este y cada columna se convierte en una nota.</p>
+      <div class="regla"><span>grave</span><div class="barra" id="barraColor" style="background:linear-gradient(90deg,#2b5cff,#2ee6ff,#ffe066,#ff3b3b)"></div><span>agudo</span></div>
+      <ul>
+        <li><b>Altura de la nota</b> = valor del dato (más alto, más agudo)</li>
+        <li><b>Volumen</b> = cuánta parte de la columna tiene datos</li>
+        <li><b>Bajo</b> = lo que pasa cerca del ecuador</li>
+        <li><b>Sonidos especiales</b> = eventos naturales activos hoy (EONET)</li>
+      </ul>
+      <p id="narracion" aria-live="polite"></p>
+    </section>
+    <section class="caja" aria-labelledby="t-ev">
+      <h3 id="t-ev">Eventos naturales activos (NASA EONET)</h3>
+      <p id="eventosEstado">Buscando eventos…</p>
+      <ul id="eventosLista"></ul>
+      <p style="font-size:13px">🔥 incendio = chisporroteo · 🌀 tormenta = viento · 🌋 volcán = tambor grave · 🧊 hielo = campanita · 🌊 inundación = gota · 🌫️ polvo/humo = soplido</p>
+    </section>
+  </div>
+
+  <section class="caja" style="margin-top:14px" aria-labelledby="t-teclas">
+    <h3 id="t-teclas">Atajos de teclado</h3>
+    <p><kbd>Espacio</kbd> tocar / pausar · <kbd>1</kbd>–<kbd>8</kbd> elegir disco · <kbd>←</kbd> <kbd>→</kbd> más lento / más rápido · <kbd>D</kbd> describir imagen · <kbd>N</kbd> narrador</p>
+    <p id="fuente" style="font-size:13px"></p>
+  </section>
+</main>
+
+<footer>
+  Imágenes: NASA Global Imagery Browse Services (GIBS), parte de ESDIS · Eventos: NASA EONET · Inspirado en el
+  <a href="https://earth.gov" target="_blank" rel="noopener">Earth Information Center (earth.gov)</a> · Proyecto escolar para NASA Space Apps.
+</footer>
+
+<script>
+/* =====================================================================
+   ROCKOLA DE LA TIERRA
+   1) Pide una imagen del día a la NASA (GIBS)
+   2) La "lee" columna por columna (de oeste a este)
+   3) Convierte cada columna en notas musicales (Web Audio API)
+   4) Agrega sonidos especiales para los eventos naturales de EONET
+   ===================================================================== */
+
+// ---------- 1. LOS DISCOS (capas de datos de la NASA) ----------
+// modo: cómo pasamos de un color a un número entre 0 y 1
+//   'brillo' = qué tan claro es el pixel
+//   'color'  = escala de colores azul (frío/bajo) → rojo (caliente/alto)
+//   'verde'  = de café (poca planta) a verde (mucha planta)
+const DISCOS = [
+  {cod:'A1', nombre:'La Tierra hoy', sub:'Color real · satélite Terra', capas:['MODIS_Terra_CorrectedReflectance_TrueColor','VIIRS_SNPP_CorrectedReflectance_TrueColor'],
+   formato:'image/jpeg', modo:'brillo', onda:'triangle', octava:0, color:'#4fc3f7',
+   explica:'Foto real del planeta. Las nubes y los desiertos (claros) suenan agudos; el océano (oscuro) suena grave.',
+   barra:'linear-gradient(90deg,#06122b,#2d5a7b,#c8b48a,#ffffff)'},
+  {cod:'A2', nombre:'Temperatura del mar', sub:'GHRSST · diario', capas:['GHRSST_L4_MUR_Sea_Surface_Temperature'],
+   formato:'image/png', modo:'color', tonoMax:240, onda:'sine', octava:0, color:'#ff7043',
+   explica:'Solo suena el océano. Agua fría = notas graves; agua caliente = notas agudas. Los continentes son silencio.',
+   barra:'linear-gradient(90deg,#3b2bff,#2ee6ff,#7dff6a,#ffe066,#ff3b3b)'},
+  {cod:'A3', nombre:'Calor del suelo', sub:'Temperatura de la tierra · MODIS', capas:['MODIS_Terra_Land_Surface_Temp_Day','MODIS_Aqua_Land_Surface_Temp_Day'],
+   formato:'image/png', modo:'color', tonoMax:240, onda:'square', octava:-1, color:'#ffca28',
+   explica:'Solo suenan los continentes. Suelo frío = grave; suelo muy caliente (desiertos) = agudo.',
+   barra:'linear-gradient(90deg,#3b2bff,#2ee6ff,#7dff6a,#ffe066,#ff3b3b)'},
+  {cod:'A4', nombre:'Plantas y bosques', sub:'Índice de vegetación (NDVI)', capas:['MODIS_Terra_NDVI_8Day','MODIS_Aqua_NDVI_8Day'],
+   formato:'image/png', modo:'verde', onda:'sine', octava:1, color:'#66bb6a', marimba:true,
+   explica:'Mide qué tan verde está la Tierra. Selvas = notas agudas de marimba; desiertos = graves.',
+   barra:'linear-gradient(90deg,#c9a26b,#e8e07a,#7cc35a,#0b5d1e)'},
+  {cod:'A5', nombre:'Lluvia', sub:'Lluvia cada media hora · IMERG', capas:['IMERG_Precipitation_Rate'],
+   formato:'image/png', modo:'color', tonoMax:240, onda:'sine', octava:1, color:'#29b6f6', campana:true,
+   explica:'Donde llueve hay campanitas. Lluvia suave = grave; aguacero = agudo. Sin lluvia = silencio.',
+   barra:'linear-gradient(90deg,#2ee6ff,#7dff6a,#ffe066,#ff3b3b)'},
+  {cod:'A6', nombre:'Nieve', sub:'Cobertura de nieve · MODIS', capas:['MODIS_Terra_NDSI_Snow_Cover','MODIS_Terra_Snow_Cover'],
+   formato:'image/png', modo:'brillo', onda:'sine', octava:2, color:'#e0f7fa', campana:true,
+   explica:'Suena donde hay nieve. Más nieve = notas más agudas y brillantes, como cristales.',
+   barra:'linear-gradient(90deg,#1b3a6b,#7fb2e5,#ffffff)'},
+  {cod:'A7', nombre:'Humo y polvo', sub:'Aerosoles en el aire', capas:['MODIS_Combined_Value_Added_AOD','MODIS_Terra_Aerosol'],
+   formato:'image/png', modo:'color', tonoMax:60, onda:'sawtooth', octava:-1, color:'#a1887f',
+   explica:'Partículas en el aire (humo de incendios, polvo del desierto). Aire limpio = grave; mucho humo = agudo y áspero.',
+   barra:'linear-gradient(90deg,#fff59d,#ffb74d,#e65100,#6d1b00)'},
+  {cod:'A8', nombre:'Luces de noche', sub:'Ciudades vistas de noche · VIIRS', capas:['VIIRS_SNPP_DayNightBand_ENCC','VIIRS_Black_Marble'],
+   formato:'image/png', modo:'brillo', onda:'triangle', octava:1, color:'#ffd54f',
+   fechaFija:{'VIIRS_Black_Marble':'2016-01-01'},
+   explica:'Las luces de las ciudades de noche. Donde vive mucha gente suenan notas agudas; el campo y el mar son graves.',
+   barra:'linear-gradient(90deg,#000,#2b2b4a,#ffd54f,#fff)'}
+];
+
+const COLUMNAS = 64;      // cuántas notas tiene una vuelta al mundo
+const FRANJAS  = 6;       // franjas de latitud (de norte a sur)
+const W = 720, H = 360;   // tamaño de la imagen que pedimos
+const GIBS = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+const VEDA = 'https://openveda.cloud/api';   // catálogo de datos que usa earth.gov (EIC)
+const EONET = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=30&limit=300';
+
+// ---------- Estado del programa ----------
+let imagenVista = null, disco = DISCOS[0], discoActual = 0, imagenDatos = null, costas = null, rejilla = null, fechaUsada = '', capaUsada = '', modoDemo = false;
+let eventos = [], eventosPorColumna = [], conEventos = true, narrador = false;
+let audio = null, salida = null, analizador = null, tocando = false, paso = 0, tiempoSiguiente = 0, temporizador = null;
+const historialPasos = []; // para dibujar la línea sincronizada con el sonido
+
+const $ = id => document.getElementById(id);
+const lienzo = $('mapa'), ctx = lienzo.getContext('2d');
+
+// ---------- Utilidades de fecha ----------
+function ayerUTC(){ const d = new Date(Date.now() - 86400000); return d.toISOString().slice(0,10); }
+function restarDia(f){ const d = new Date(f+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-1); return d.toISOString().slice(0,10); }
+$('fecha').value = ayerUTC(); $('fecha').max = new Date().toISOString().slice(0,10);
+
+// ---------- 2. PEDIR LA IMAGEN A LA NASA ----------
+function urlGIBS(capa, fecha, formato){
+  const p = new URLSearchParams({SERVICE:'WMS',REQUEST:'GetMap',VERSION:'1.1.1',LAYERS:capa,STYLES:'',SRS:'EPSG:4326',
+    BBOX:'-180,-90,180,90',WIDTH:W,HEIGHT:H,FORMAT:formato,TRANSPARENT:'TRUE',TIME:fecha});
+  return GIBS + '?' + p.toString();
+}
+function cargarImagen(url){
+  return new Promise((ok, mal) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';           // necesario para poder "leer" los colores
+    img.onload = () => ok(img);
+    img.onerror = () => mal(new Error('no cargó'));
+    img.src = url;
+  });
+}
+// Lee todos los pixeles de una imagen
+function leerPixeles(img){
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'); x.drawImage(img,0,0,W,H);
+  return x.getImageData(0,0,W,H).data; // falla si el servidor no permite leer (CORS)
+}
+
+// Intenta la fecha elegida; si no hay datos, prueba días anteriores y capas alternativas
+async function buscarImagen(disco, fecha){
+  for (const capa of disco.capas){
+    let f = (disco.fechaFija && disco.fechaFija[capa]) || fecha;
+    for (let intento = 0; intento < 6; intento++){
+      try{
+        const img = await cargarImagen(urlGIBS(capa, f, disco.formato));
+        const px = leerPixeles(img);
+        const r = analizar(px, disco);
+        if (r.cobertura > 0.01) return {img, rejilla:r, fecha:f, capa};
+      }catch(e){
+        if (e.name === 'SecurityError') throw e;   // el navegador no deja leer la imagen
+      }
+      f = restarDia(f);
+    }
+  }
+  throw new Error('sin datos');
+}
+
+// ---------- 3. DE COLOR A NÚMERO ----------
+function colorAValor(r,g,b,a,disco){
+  if (a < 40) return null;                                  // transparente = sin datos
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b), d = mx - mn;
+  if (disco.modo === 'gris') return r/255;                 // imagen en grises: blanco = 1, negro = 0
+  if (disco.modo === 'brillo'){
+    const v = (0.299*r + 0.587*g + 0.114*b)/255;
+    return v < 0.02 ? null : v;                              // negro total = hueco sin datos
+  }
+  if (mx < 15) return null;
+  let h = 0;                                                 // tono (hue) de 0 a 360
+  if (d === 0) h = 0;
+  else if (mx === r) h = 60*(((g-b)/d)%6);
+  else if (mx === g) h = 60*((b-r)/d + 2);
+  else h = 60*((r-g)/d + 4);
+  if (h < 0) h += 360;
+  if (disco.modo === 'verde'){
+    if (d < 15) return 0.08;
+    return Math.min(1, Math.max(0, (h-30)/90));
+  }
+  // modo 'color': azul/morado = bajo, rojo = alto
+  if (d < 12) return null;                                   // gris = sin datos
+  const max = disco.tonoMax || 240;
+  if (h > 300) h = 0;            // rosado/magenta = lo más alto
+  else if (h > max) h = max;     // morado = lo más bajo
+  return 1 - h/max;
+}
+
+// Divide la imagen en COLUMNAS x FRANJAS y saca el promedio de cada cajita
+function analizar(px, disco){
+  const celdas = [], cw = W/COLUMNAS, fh = H/FRANJAS;
+  let total = 0, validos = 0;
+  for (let c = 0; c < COLUMNAS; c++){
+    const col = {franjas:[], valor:0, cobertura:0};
+    let sumaCol = 0, nCol = 0, totCol = 0;
+    for (let f = 0; f < FRANJAS; f++){
+      let suma = 0, n = 0, tot = 0;
+      for (let y = Math.floor(f*fh); y < Math.floor((f+1)*fh); y += 3){
+        for (let x = Math.floor(c*cw); x < Math.floor((c+1)*cw); x += 2){
+          const i = (y*W + x)*4, v = colorAValor(px[i],px[i+1],px[i+2],px[i+3],disco);
+          tot++; if (v !== null){ suma += v; n++; }
+        }
+      }
+      col.franjas.push({valor: n ? suma/n : 0, cobertura: n/tot});
+      sumaCol += suma; nCol += n; totCol += tot;
+    }
+    col.valor = nCol ? sumaCol/nCol : 0; col.cobertura = nCol/totCol;
+    total += totCol; validos += nCol; celdas.push(col);
+  }
+  return {celdas, cobertura: validos/total};
+}
+
+// Datos de práctica por si no hay internet (¡avisamos en pantalla!)
+function rejillaDemo(disco){
+  const celdas = [];
+  for (let c = 0; c < COLUMNAS; c++){
+    const franjas = [];
+    for (let f = 0; f < FRANJAS; f++){
+      const lat = 1 - Math.abs((f+0.5)/FRANJAS*2 - 1);
+      const v = Math.max(0, Math.min(1, 0.55*lat + 0.25*Math.sin(c/5 + disco.cod.charCodeAt(1)) + 0.15*Math.sin(c*f/7)));
+      franjas.push({valor:v, cobertura: 0.4 + 0.6*Math.abs(Math.sin(c/9+f))});
+    }
+    const valor = franjas.reduce((a,b)=>a+b.valor,0)/FRANJAS, cobertura = franjas.reduce((a,b)=>a+b.cobertura,0)/FRANJAS;
+    celdas.push({franjas, valor, cobertura});
+  }
+  return {celdas, cobertura:0.7};
+}
+
+// ---------- 4. EVENTOS NATURALES EN VIVO (EONET) ----------
+const TIPOS = {
+  wildfires:{ico:'🔥',nom:'Incendio'}, severeStorms:{ico:'🌀',nom:'Tormenta fuerte'}, volcanoes:{ico:'🌋',nom:'Volcán'},
+  seaLakeIce:{ico:'🧊',nom:'Hielo marino'}, floods:{ico:'🌊',nom:'Inundación'}, dustHaze:{ico:'🌫️',nom:'Polvo o humo'},
+  drought:{ico:'🏜️',nom:'Sequía'}, earthquakes:{ico:'〰️',nom:'Sismo'}, landslides:{ico:'⛰️',nom:'Deslizamiento'},
+  snow:{ico:'❄️',nom:'Nevada'}, tempExtremes:{ico:'🌡️',nom:'Temperatura extrema'}, waterColor:{ico:'💧',nom:'Color del agua'},
+  manmade:{ico:'🏭',nom:'Causado por personas'}
+};
+async function cargarEventos(){
+  try{
+    const r = await fetch(EONET); if (!r.ok) throw 0;
+    const j = await r.json();
+    eventos = j.events.map(e => {
+      const g = e.geometry[e.geometry.length-1]; let co = g.coordinates;
+      while (Array.isArray(co[0])) co = co[0];                // polígonos: tomamos un punto
+      const cat = e.categories[0].id;
+      return {titulo:e.title, cat, lon:co[0], lat:co[1], fecha:g.date, ...(TIPOS[cat]||{ico:'📍',nom:e.categories[0].title})};
+    }).filter(e => isFinite(e.lon) && isFinite(e.lat));
+    eventosPorColumna = Array.from({length:COLUMNAS}, () => []);
+    eventos.forEach(e => eventosPorColumna[Math.min(COLUMNAS-1, Math.floor((e.lon+180)/360*COLUMNAS))].push(e));
+    const cuenta = {}; eventos.forEach(e => cuenta[e.ico+' '+e.nom] = (cuenta[e.ico+' '+e.nom]||0)+1);
+    $('eventosEstado').textContent = `${eventos.length} eventos activos en los últimos 30 días: ` +
+      Object.entries(cuenta).map(([k,v]) => `${k}: ${v}`).join(' · ');
+    $('eventosLista').innerHTML = eventos.slice(0,40).map(e => `<li>${e.ico} ${escapar(e.titulo)}</li>`).join('');
+  }catch(e){
+    $('eventosEstado').innerHTML = '<span class="aviso">No se pudieron traer los eventos (¿sin internet?).</span> La música sigue sonando sin ellos.';
+    eventosPorColumna = Array.from({length:COLUMNAS}, () => []);
+  }
+  dibujar();
+}
+function escapar(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- 5. ELEGIR Y CARGAR UN DISCO ----------
+async function ponerDisco(i){
+  discoActual = i; disco = DISCOS[i];
+  const d = DISCOS[i];
+  document.querySelectorAll('.disco').forEach((b,k) => b.setAttribute('aria-pressed', k===i));
+  $('explica').textContent = d.explica;
+  $('barraColor').style.background = d.barra;
+  $('cargando').classList.add('si');
+  $('cargando').textContent = `Cargando ${d.cod} · ${d.nombre} desde la NASA…`;
+  modoDemo = false; imagenVista = null;
+  try{
+    const r = await buscarImagen(d, $('fecha').value);
+    imagenDatos = r.img; rejilla = r.rejilla; fechaUsada = r.fecha; capaUsada = r.capa;
+  }catch(e){
+    imagenDatos = null; rejilla = rejillaDemo(d); fechaUsada = '—'; capaUsada = d.capas[0]; modoDemo = true;
+  }
+  $('cargando').classList.remove('si');
+  const wv = `https://worldview.earthdata.nasa.gov/?l=${capaUsada},Coastlines_15m&t=${fechaUsada}`;
+  $('etiqueta').innerHTML = modoDemo
+    ? `<b>${d.cod} · ${escapar(d.nombre)}</b><br><span class="aviso">Modo práctica: datos inventados (no hubo conexión con la NASA)</span>`
+    : `<b>${d.cod} · ${escapar(d.nombre)}</b><br>Fecha de la imagen: ${fechaUsada}`;
+  $('fuente').innerHTML = modoDemo ? 'Fuente: datos de práctica generados en tu computador.'
+    : `Fuente: NASA GIBS, capa <code>${capaUsada}</code>, fecha ${fechaUsada}. <a href="${wv}" target="_blank" rel="noopener">Ver esta capa en NASA Worldview</a>.`;
+  hablar(`Disco ${d.cod}: ${d.nombre}. ${d.explica}`);
+  dibujar();
+}
+
+
+// ---------- 5b. DISCOS DEL EIC: catálogo VEDA de earth.gov ----------
+// El EIC (earth.gov) guarda sus datos en un catálogo STAC llamado VEDA.
+// Paso 1: pedimos la lista de colecciones. Paso 2: la imagen más cercana a la fecha.
+// Paso 3: pedimos DOS imágenes al Raster API: una en grises (para medir) y una de colores (para ver).
+async function cargarCatalogoEIC(){
+  try{
+    const r = await fetch(`${VEDA}/stac/collections?limit=1000`); if (!r.ok) throw 0;
+    const j = await r.json();
+    const lista = (j.collections || []).filter(c => {
+      const b = c.extent && c.extent.spatial && c.extent.spatial.bbox && c.extent.spatial.bbox[0];
+      return c.renders && c.renders.dashboard && b && (b[2]-b[0]) > 300;   // solo mapas de todo el mundo
+    }).sort((a,b) => (a.title||a.id).localeCompare(b.title||b.id));
+    if (!lista.length) throw 0;
+    $('eicSel').innerHTML = lista.map(c => `<option value="${escapar(c.id)}"${c.id==='no2-monthly'?' selected':''}>${escapar(c.title||c.id)} (${escapar(c.id)})</option>`).join('');
+    $('eicEstado').textContent = `${lista.length} colecciones mundiales disponibles en el EIC.`;
+  }catch(e){
+    $('eicEstado').innerHTML = '<span class="aviso">No se pudo leer el catálogo del EIC; queda NO₂ como opción.</span>';
+  }
+}
+function paramsRender(rd, conColores){
+  const p = new URLSearchParams();
+  (rd.assets || ['cog_default']).forEach(a => p.append('assets', a));
+  if (rd.bidx) rd.bidx.forEach(b => p.append('bidx', b));
+  if (rd.rescale) rd.rescale.forEach(x => p.append('rescale', x.join(',')));
+  if (rd.resampling) p.set('resampling', rd.resampling);
+  if (conColores){
+    if (rd.colormap_name) p.set('colormap_name', rd.colormap_name);
+    if (rd.color_formula) p.set('color_formula', rd.color_formula);
+    if (rd.colormap) p.set('colormap', typeof rd.colormap === 'string' ? rd.colormap : JSON.stringify(rd.colormap));
+  }
+  return p.toString();
+}
+async function imagenEIC(cid, iid, query){
+  const base = `${VEDA}/raster/collections/${encodeURIComponent(cid)}/items/${encodeURIComponent(iid)}`;
+  try{ return await cargarImagen(`${base}/bbox/-180,-90,180,90/${W}x${H}.png?${query}`); }
+  catch(e){ return await cargarImagen(`${base}/preview.png?${query}&width=${W}&height=${H}`); }
+}
+async function ponerDiscoEIC(cid){
+  $('cargando').classList.add('si');
+  $('cargando').textContent = `Cargando ${cid} desde el EIC (earth.gov)…`;
+  document.querySelectorAll('.disco').forEach(b => b.setAttribute('aria-pressed', false));
+  modoDemo = false;
+  try{
+    // 1. la colección y sus colores oficiales
+    const col = await (await fetch(`${VEDA}/stac/collections/${encodeURIComponent(cid)}`)).json();
+    const rd = (col.renders && col.renders.dashboard) || {};
+    // 2. la imagen más cercana (antes o igual) a la fecha elegida
+    let r = await fetch(`${VEDA}/stac/search?collections=${encodeURIComponent(cid)}&datetime=../${$('fecha').value}T23:59:59Z&sortby=-datetime&limit=1`);
+    let items = r.ok ? (await r.json()).features : [];
+    if (!items || !items.length) items = (await (await fetch(`${VEDA}/stac/collections/${encodeURIComponent(cid)}/items?limit=1`)).json()).features;
+    const item = items[0]; if (!item) throw new Error('sin imágenes');
+    const fechaItem = (item.properties.datetime || item.properties.start_datetime || '').slice(0,10);
+    // 3. imagen en grises para medir + imagen con colores para mostrar
+    const gris = await imagenEIC(cid, item.id, paramsRender(rd, false));
+    let vista = null; try{ vista = await imagenEIC(cid, item.id, paramsRender(rd, true)); }catch(e){}
+    disco = {cod:'EIC', nombre: col.title || cid, eic: cid, modo:'gris', onda:'sine', octava:0, campana:false, marimba:true,
+      explica: `Datos del Centro de Información sobre la Tierra: ${(col.description||'').slice(0,220)}${(col.description||'').length>220?'…':''} Valor alto = nota aguda.`,
+      barra: 'linear-gradient(90deg,#000,#fff)'};
+    rejilla = analizar(leerPixeles(gris), disco);
+    imagenDatos = gris; imagenVista = vista; fechaUsada = fechaItem; capaUsada = cid;
+    $('etiqueta').innerHTML = `<b>EIC · ${escapar(disco.nombre)}</b><br>Fecha de los datos: ${fechaItem}`;
+    $('fuente').innerHTML = `Fuente: NASA Earth Information Center (catálogo VEDA), colección <code>${escapar(cid)}</code>, imagen <code>${escapar(item.id)}</code>.`;
+    $('explica').textContent = disco.explica;
+    $('barraColor').style.background = 'linear-gradient(90deg,#1b2a6b,#2ee6ff,#ffe066,#ff3b3b)';
+    hablar(`Disco del EIC: ${disco.nombre}.`);
+  }catch(e){
+    $('eicEstado').innerHTML = `<span class="aviso">No se pudo cargar ${escapar(cid)} (${escapar(e.message||'sin conexión')}). Prueba otra colección.</span>`;
+  }
+  $('cargando').classList.remove('si');
+  dibujar();
+}
+
+// ---------- 6. EL SONIDO (Web Audio API) ----------
+const ESCALAS = {mayor:[0,2,4,7,9], menor:[0,3,5,7,10]};
+function frecuencia(indice, octava){
+  const esc = ESCALAS[$('escala').value];
+  const semitonos = 12*(Math.floor(indice/5) + octava) + esc[indice % 5];
+  return 220 * Math.pow(2, semitonos/12);                  // La 220 Hz es nuestra nota base
+}
+function iniciarAudio(){
+  if (audio) return;
+  audio = new (window.AudioContext || window.webkitAudioContext)();
+  salida = audio.createGain(); salida.gain.value = $('volumen').value/100;
+  const comp = audio.createDynamicsCompressor();             // evita que suene demasiado fuerte
+  analizador = audio.createAnalyser(); analizador.fftSize = 64;
+  salida.connect(comp); comp.connect(analizador); analizador.connect(audio.destination);
+}
+// Una nota con "envolvente": sube rápido y se apaga suave
+function nota(frec, t, dur, vol, onda){
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = onda; o.frequency.value = frec;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(salida); o.start(t); o.stop(t + dur + 0.05);
+}
+function ruido(t, dur, vol, tipoFiltro, frecFiltro, frecFinal){
+  const n = audio.createBuffer(1, audio.sampleRate*dur, audio.sampleRate), d = n.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
+  const s = audio.createBufferSource(); s.buffer = n;
+  const f = audio.createBiquadFilter(); f.type = tipoFiltro; f.frequency.setValueAtTime(frecFiltro, t);
+  if (frecFinal) f.frequency.exponentialRampToValueAtTime(frecFinal, t + dur);
+  const g = audio.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(salida); s.start(t);
+}
+// Sonido especial de cada tipo de evento
+function sonidoEvento(cat, t){
+  if (cat === 'wildfires'){ for (let k=0;k<5;k++) ruido(t + k*0.03 + Math.random()*0.02, 0.05, 0.35, 'highpass', 2500); }
+  else if (cat === 'severeStorms'){ ruido(t, 0.9, 0.35, 'bandpass', 300, 1800); }
+  else if (cat === 'volcanoes'){
+    const o = audio.createOscillator(), g = audio.createGain(); o.type='sine';
+    o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(35,t+0.5);
+    g.gain.setValueAtTime(0.9,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.6);
+    o.connect(g); g.connect(salida); o.start(t); o.stop(t+0.7);
+  }
+  else if (cat === 'seaLakeIce' || cat === 'snow'){ nota(1760,t,0.8,0.2,'sine'); nota(2637,t,0.6,0.08,'sine'); }
+  else if (cat === 'floods' || cat === 'waterColor'){
+    const o = audio.createOscillator(), g = audio.createGain(); o.type='sine';
+    o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(1400,t+0.12);
+    g.gain.setValueAtTime(0.3,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    o.connect(g); g.connect(salida); o.start(t); o.stop(t+0.25);
+  }
+  else if (cat === 'dustHaze' || cat === 'drought'){ ruido(t, 0.5, 0.25, 'lowpass', 900); }
+  else { nota(880,t,0.15,0.2,'square'); }
+}
+
+// Toca una columna del mapa
+function tocarPaso(c, t, durPaso){
+  const d = disco, col = rejilla.celdas[c];
+  // golpecito de ritmo (como un reloj)
+  ruido(t, 0.03, c % 4 === 0 ? 0.12 : 0.05, 'highpass', 7000);
+  if (col.cobertura > 0.04){
+    const idx = Math.round(col.valor * 14);                  // 15 notas posibles
+    const vol = 0.08 + 0.32*Math.min(1, col.cobertura*1.5);
+    if (d.marimba){ nota(frecuencia(idx,d.octava), t, durPaso*1.6, vol, 'sine'); nota(frecuencia(idx,d.octava)*4, t, 0.08, vol*0.3, 'sine'); }
+    else if (d.campana){ nota(frecuencia(idx,d.octava), t, durPaso*3, vol*0.8, 'sine'); nota(frecuencia(idx,d.octava)*2.01, t, durPaso*1.5, vol*0.25, 'sine'); }
+    else nota(frecuencia(idx,d.octava), t, durPaso*1.3, d.onda==='square'||d.onda==='sawtooth' ? vol*0.45 : vol, d.onda);
+  }
+  // bajo cada 2 pasos: franjas del ecuador (2 y 3)
+  if (c % 2 === 0){
+    const ec = [col.franjas[2], col.franjas[3]].filter(f => f.cobertura > 0.05);
+    if (ec.length){
+      const v = ec.reduce((a,f)=>a+f.valor,0)/ec.length;
+      nota(frecuencia(Math.round(v*4), -2), t, durPaso*2, 0.22, 'triangle');
+    }
+  }
+  // eventos naturales en esta columna
+  if (conEventos && eventosPorColumna[c]){
+    eventosPorColumna[c].slice(0,3).forEach((e,k) => sonidoEvento(e.cat, t + k*durPaso/3));
+  }
+  historialPasos.push({c, t});
+}
+
+// Programador: agenda las notas un poquito antes para que suenen a tiempo
+function programador(){
+  const durPaso = 60 / $('tempo').value / 2;                 // corcheas
+  while (tiempoSiguiente < audio.currentTime + 0.12){
+    tocarPaso(paso, tiempoSiguiente, durPaso);
+    anunciarPaso(paso);
+    tiempoSiguiente += durPaso;
+    paso = (paso + 1) % COLUMNAS;
+  }
+}
+function tocar(){
+  iniciarAudio(); audio.resume();
+  if (!rejilla) return;
+  tocando = true; tiempoSiguiente = audio.currentTime + 0.05;
+  temporizador = setInterval(programador, 25);
+  $('tocar').textContent = '⏸ Pausa'; $('tocar').setAttribute('aria-label','Pausar');
+}
+function pausar(){
+  tocando = false; clearInterval(temporizador);
+  $('tocar').textContent = '▶ Tocar'; $('tocar').setAttribute('aria-label','Tocar');
+}
+
+// ---------- 7. ACCESIBILIDAD: narrar lo que suena ----------
+function lonTexto(c){ const lon = Math.round(-180 + (c+0.5)*360/COLUMNAS); return lon < 0 ? `${-lon}° oeste` : `${lon}° este`; }
+function nivel(v){ return v > 0.75 ? 'muy alto' : v > 0.5 ? 'alto' : v > 0.25 ? 'medio' : 'bajo'; }
+function anunciarPaso(c){
+  const evs = conEventos ? (eventosPorColumna[c]||[]) : [];
+  if (evs.length){
+    const txt = evs.slice(0,3).map(e => `${e.ico} ${e.nom}: ${e.titulo}`).join(' · ');
+    $('narracion').textContent = `Longitud ${lonTexto(c)} — ${txt}`;
+    if (narrador) hablar(`${evs[0].nom}. ${evs[0].titulo}`);
+  } else if (c % 8 === 0){
+    const col = rejilla.celdas[c];
+    $('narracion').textContent = col.cobertura > 0.04
+      ? `Longitud ${lonTexto(c)}: valor ${nivel(col.valor)} (${Math.round(col.valor*100)}%)`
+      : `Longitud ${lonTexto(c)}: sin datos aquí (silencio)`;
+  }
+}
+function hablar(texto){
+  if (!narrador || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(texto); u.lang = 'es-ES'; u.rate = 1.05;
+  speechSynthesis.speak(u);
+}
+function describir(){
+  if (!rejilla) return;
+  const d = disco, cs = rejilla.celdas;
+  const conDatos = cs.map((c,i)=>({...c,i})).filter(c => c.cobertura > 0.04);
+  if (!conDatos.length){ $('narracion').textContent = 'Esta imagen casi no tiene datos.'; return; }
+  const max = conDatos.reduce((a,b)=> b.valor>a.valor?b:a), min = conDatos.reduce((a,b)=> b.valor<a.valor?b:a);
+  const prom = conDatos.reduce((a,b)=>a+b.valor,0)/conDatos.length;
+  const txt = `${d.nombre} (${fechaUsada}). Hay datos en el ${Math.round(rejilla.cobertura*100)}% del mapa. ` +
+    `El valor más alto está cerca de ${lonTexto(max.i)} y el más bajo cerca de ${lonTexto(min.i)}. ` +
+    `En promedio el valor es ${nivel(prom)}. Hay ${eventos.length} eventos naturales activos.`;
+  $('narracion').textContent = txt;
+  const antes = narrador; narrador = true; hablar(txt); narrador = antes;
+}
+
+// ---------- 8. DIBUJAR EL MAPA, LA LÍNEA Y LOS EVENTOS ----------
+function dibujar(){
+  ctx.fillStyle = '#05060f'; ctx.fillRect(0,0,W,H);
+  if (imagenVista) ctx.drawImage(imagenVista,0,0,W,H);
+  else if (imagenDatos) ctx.drawImage(imagenDatos,0,0,W,H);
+  else if (rejilla){ // modo práctica: dibujamos cajitas de colores
+    rejilla.celdas.forEach((col,c) => col.franjas.forEach((f,k) => {
+      ctx.fillStyle = `hsla(${240-240*f.valor},80%,50%,${f.cobertura})`;
+      ctx.fillRect(c*W/COLUMNAS, k*H/FRANJAS, W/COLUMNAS+1, H/FRANJAS+1);
+    }));
+  }
+  if (costas){ ctx.globalAlpha = 0.55; ctx.drawImage(costas,0,0,W,H); ctx.globalAlpha = 1; }
+  // línea de lectura sincronizada con el audio
+  let cActual = -1;
+  if (audio && tocando){
+    while (historialPasos.length > 1 && historialPasos[1].t <= audio.currentTime) historialPasos.shift();
+    if (historialPasos.length && historialPasos[0].t <= audio.currentTime) cActual = historialPasos[0].c;
+  }
+  if (cActual >= 0){
+    const x = cActual*W/COLUMNAS;
+    const grad = ctx.createLinearGradient(x-20,0,x+W/COLUMNAS,0);
+    grad.addColorStop(0,'rgba(255,79,163,0)'); grad.addColorStop(1,'rgba(255,79,163,.45)');
+    ctx.fillStyle = grad; ctx.fillRect(x-20,0,20+W/COLUMNAS,H);
+    ctx.strokeStyle = '#ff4fa3'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x+W/COLUMNAS,0); ctx.lineTo(x+W/COLUMNAS,H); ctx.stroke();
+  }
+  // eventos
+  if (conEventos){
+    ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    eventos.forEach(e => {
+      const x = (e.lon+180)/360*W, y = (90-e.lat)/180*H;
+      const cerca = cActual >= 0 && Math.floor((e.lon+180)/360*COLUMNAS) === cActual;
+      if (cerca){ ctx.fillStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(x,y,13,0,7); ctx.fill(); }
+      ctx.fillText(e.ico, x, y);
+    });
+  }
+}
+// barras de luz de la rockola
+const barras = [];
+for (let i = 0; i < 24; i++){ const s = document.createElement('span'); $('arco').appendChild(s); barras.push(s); }
+const datosFrec = new Uint8Array(32);
+function animar(){
+  if (analizador && tocando){
+    analizador.getByteFrequencyData(datosFrec);
+    barras.forEach((b,i) => b.style.height = (8 + datosFrec[Math.min(31, i+2)]/255*92) + '%');
+  } else barras.forEach((b,i) => b.style.height = (8 + 6*Math.sin(Date.now()/600 + i/2)+6) + '%');
+  if (tocando) dibujar();
+  requestAnimationFrame(animar);
+}
+
+// ---------- 9. BOTONES Y TECLADO ----------
+DISCOS.forEach((d,i) => {
+  const b = document.createElement('button');
+  b.className = 'disco'; b.setAttribute('aria-pressed','false'); b.style.setProperty('--c', d.color);
+  b.setAttribute('aria-keyshortcuts', String(i+1));
+  b.innerHTML = `<span class="vinilo" aria-hidden="true"></span><span class="cod">${d.cod}</span><span class="nom">${d.nombre}</span><span class="sub">${d.sub}</span>`;
+  b.onclick = () => ponerDisco(i);
+  $('discos').appendChild(b);
+});
+$('tocar').onclick = () => tocando ? pausar() : tocar();
+$('tempo').oninput = e => $('tempoTxt').textContent = e.target.value;
+$('volumen').oninput = e => { if (salida) salida.gain.value = e.target.value/100; };
+$('fecha').onchange = () => disco.eic ? ponerDiscoEIC(disco.eic) : ponerDisco(discoActual);
+$('eicCargar').onclick = () => ponerDiscoEIC($('eicSel').value);
+$('btnEventos').onclick = e => { conEventos = !conEventos; e.currentTarget.setAttribute('aria-pressed', conEventos); dibujar(); };
+$('btnNarrador').onclick = e => { narrador = !narrador; e.currentTarget.setAttribute('aria-pressed', narrador); if (!narrador && 'speechSynthesis' in window) speechSynthesis.cancel(); else hablar('Narrador activado'); };
+$('btnDescribir').onclick = describir;
+document.addEventListener('keydown', e => {
+  if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.code === 'Space'){ e.preventDefault(); tocando ? pausar() : tocar(); }
+  else if (e.key >= '1' && e.key <= '8') ponerDisco(Number(e.key)-1);
+  else if (e.key === 'ArrowRight'){ $('tempo').value = Math.min(200, +$('tempo').value+10); $('tempoTxt').textContent = $('tempo').value; }
+  else if (e.key === 'ArrowLeft'){ $('tempo').value = Math.max(60, +$('tempo').value-10); $('tempoTxt').textContent = $('tempo').value; }
+  else if (e.key.toLowerCase() === 'd') describir();
+  else if (e.key.toLowerCase() === 'n') $('btnNarrador').click();
+});
+
+// ---------- ¡ARRANCAMOS! ----------
+cargarImagen(urlGIBS('Coastlines_15m', '2020-01-01', 'image/png')).then(i => { costas = i; dibujar(); }).catch(()=>{});
+cargarEventos();
+ponerDisco(0);
+cargarCatalogoEIC();
+animar();
+</script>
+</body>
+</html>
