@@ -89,7 +89,7 @@
 <a class="saltar" href="#controles">Saltar a los controles</a>
 <header>
   <h1>Rockola de la Tierra</h1>
-  <p>Escucha nuestro planeta: imágenes satelitales de la NASA convertidas en música en tiempo real</p>
+  <p>Escucha nuestro planeta: imágenes satelitales de la NASA convertidas en música en tiempo real · por StudiosIA Lab</p>
 </header>
 
 <main class="rockola">
@@ -114,6 +114,19 @@
       </label>
       <button class="chico" id="eicCargar">💿 Poner disco EIC</button>
       <span id="eicEstado" aria-live="polite" style="font-size:14px">Cargando catálogo del EIC…</span>
+    </div>
+
+    <h2 id="tit-tiempo">⏳ Máquina del tiempo: escucha cómo cambia el planeta</h2>
+    <div class="panel" role="group" aria-labelledby="tit-tiempo" style="margin-top:0">
+      <label>Viajar
+        <select id="tiempoSel">
+          <option value="meses">12 meses (una imagen por mes)</option>
+          <option value="semanas">12 semanas (una por semana)</option>
+          <option value="anios">10 años (una por año)</option>
+        </select>
+      </label>
+      <button class="chico" id="btnTiempo" aria-keyshortcuts="T">⏳ Tocar la máquina del tiempo</button>
+      <span id="tiempoEstado" aria-live="polite" style="font-size:14px">Usa el disco que tengas puesto (también los del EIC).</span>
     </div>
 
     <div class="panel" id="controles" role="group" aria-label="Controles de la rockola">
@@ -144,6 +157,7 @@
         <li><b>Bajo</b> = lo que pasa cerca del ecuador</li>
         <li><b>Sonidos especiales</b> = eventos naturales activos hoy (EONET)</li>
       </ul>
+      <p style="font-size:13px;color:var(--suave)">Los valores se calculan a partir de los colores de la imagen, así que son aproximados. En la máquina del tiempo, el acorde de fondo es el promedio de todo el planeta: si sube, el dato aumentó.</p>
       <p id="narracion" aria-live="polite"></p>
     </section>
     <section class="caja" aria-labelledby="t-ev">
@@ -156,14 +170,14 @@
 
   <section class="caja" style="margin-top:14px" aria-labelledby="t-teclas">
     <h3 id="t-teclas">Atajos de teclado</h3>
-    <p><kbd>Espacio</kbd> tocar / pausar · <kbd>1</kbd>–<kbd>8</kbd> elegir disco · <kbd>←</kbd> <kbd>→</kbd> más lento / más rápido · <kbd>D</kbd> describir imagen · <kbd>N</kbd> narrador</p>
+    <p><kbd>Espacio</kbd> tocar / pausar · <kbd>1</kbd>–<kbd>8</kbd> elegir disco · <kbd>←</kbd> <kbd>→</kbd> más lento / más rápido · <kbd>D</kbd> describir imagen · <kbd>N</kbd> narrador · <kbd>T</kbd> máquina del tiempo</p>
     <p id="fuente" style="font-size:13px"></p>
   </section>
 </main>
 
 <footer>
   Imágenes: NASA Global Imagery Browse Services (GIBS), parte de ESDIS · Eventos: NASA EONET · Inspirado en el
-  <a href="https://earth.gov" target="_blank" rel="noopener">Earth Information Center (earth.gov)</a> · Proyecto escolar para NASA Space Apps.
+  <a href="https://earth.gov" target="_blank" rel="noopener">Earth Information Center (earth.gov)</a> · Proyecto del equipo <b>StudiosIA Lab</b>, estudiantes de sexto grado del Colegio Cristiano El Salvador (Barranquilla, Colombia), para NASA Space Apps 2026. Hecho con apoyo de la IA Claude (Anthropic). No es un producto oficial de la NASA.
 </footer>
 
 <script>
@@ -380,7 +394,7 @@ function escapar(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','
 
 // ---------- 5. ELEGIR Y CARGAR UN DISCO ----------
 async function ponerDisco(i){
-  discoActual = i; disco = DISCOS[i];
+  discoActual = i; disco = DISCOS[i]; salirTiempo();
   const d = DISCOS[i];
   document.querySelectorAll('.disco').forEach((b,k) => b.setAttribute('aria-pressed', k===i));
   $('explica').textContent = d.explica;
@@ -447,7 +461,7 @@ async function ponerDiscoEIC(cid){
   $('cargando').classList.add('si');
   $('cargando').textContent = `Cargando ${cid} desde el EIC (earth.gov)…`;
   document.querySelectorAll('.disco').forEach(b => b.setAttribute('aria-pressed', false));
-  modoDemo = false;
+  modoDemo = false; salirTiempo();
   try{
     // 1. la colección y sus colores oficiales
     const col = await (await fetch(`${VEDA}/stac/collections/${encodeURIComponent(cid)}`)).json();
@@ -461,7 +475,7 @@ async function ponerDiscoEIC(cid){
     // 3. imagen en grises para medir + imagen con colores para mostrar
     const gris = await imagenEIC(cid, item.id, paramsRender(rd, false));
     let vista = null; try{ vista = await imagenEIC(cid, item.id, paramsRender(rd, true)); }catch(e){}
-    disco = {cod:'EIC', nombre: col.title || cid, eic: cid, modo:'gris', onda:'sine', octava:0, campana:false, marimba:true,
+    disco = {cod:'EIC', render: rd, nombre: col.title || cid, eic: cid, modo:'gris', onda:'sine', octava:0, campana:false, marimba:true,
       explica: `Datos del Centro de Información sobre la Tierra: ${(col.description||'').slice(0,220)}${(col.description||'').length>220?'…':''} Valor alto = nota aguda.`,
       barra: 'linear-gradient(90deg,#000,#fff)'};
     rejilla = analizar(leerPixeles(gris), disco);
@@ -476,6 +490,115 @@ async function ponerDiscoEIC(cid){
   }
   $('cargando').classList.remove('si');
   dibujar();
+}
+
+
+// ---------- 5c. MÁQUINA DEL TIEMPO ----------
+// Carga varias imágenes del mismo disco en fechas distintas y las toca en orden.
+// Cada imagen dura 16 pasos: la melodía recorre el mapa rápido y un acorde de fondo
+// suena según el PROMEDIO de todo el planeta. Si el acorde sube, el dato aumentó.
+const PASOS_FRAME = 16;
+const tiempo = {activo:false, visible:false, frames:[], k:0, kVisible:0, pasoEnFrame:0, min:0, max:1};
+
+// Promedio de todo el planeta. Las franjas cerca de los polos se ven grandes en el mapa
+// pero son pequeñas en la realidad, por eso pesan menos (coseno de la latitud).
+function promedioPlaneta(rej){
+  let suma = 0, peso = 0;
+  rej.celdas.forEach(col => col.franjas.forEach((f, k) => {
+    const lat = 90 - (k + 0.5) * 180 / FRANJAS, w = Math.cos(lat * Math.PI / 180) * f.cobertura;
+    suma += f.valor * w; peso += w;
+  }));
+  return peso ? suma / peso : 0;
+}
+function fechasViaje(base, tipo){
+  const out = [], n = tipo === 'anios' ? 10 : 12;
+  for (let i = n - 1; i >= 0; i--){
+    const d = new Date(base + 'T12:00:00Z');
+    if (tipo === 'meses') d.setUTCMonth(d.getUTCMonth() - i);
+    else if (tipo === 'semanas') d.setUTCDate(d.getUTCDate() - 7 * i);
+    else d.setUTCFullYear(d.getUTCFullYear() - i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+async function iniciarTiempo(){
+  pausar(); tiempo.activo = false; tiempo.frames = [];
+  const frames = [], est = $('tiempoEstado');
+  $('cargando').classList.add('si');
+  try{
+    if (disco.eic){
+      // Discos del EIC: las últimas 12 imágenes del catálogo (por ejemplo, 12 meses)
+      const r = await fetch(`${VEDA}/stac/search?collections=${encodeURIComponent(disco.eic)}&datetime=../${$('fecha').value}T23:59:59Z&sortby=-datetime&limit=12`);
+      const items = ((await r.json()).features || []).reverse();
+      for (let i = 0; i < items.length; i++){
+        $('cargando').textContent = `Viajando en el tiempo… imagen ${i+1} de ${items.length}`;
+        try{
+          const it = items[i], gris = await imagenEIC(disco.eic, it.id, paramsRender(disco.render || {}, false));
+          let vista = null; try{ vista = await imagenEIC(disco.eic, it.id, paramsRender(disco.render || {}, true)); }catch(e){}
+          const rej = analizar(leerPixeles(gris), disco);
+          frames.push({fecha:(it.properties.datetime || it.properties.start_datetime || '').slice(0,10), img:gris, vista, rejilla:rej, promedio:promedioPlaneta(rej)});
+        }catch(e){}
+      }
+    } else {
+      const fechas = fechasViaje($('fecha').value, $('tiempoSel').value);
+      for (let i = 0; i < fechas.length; i++){
+        $('cargando').textContent = `Viajando en el tiempo… imagen ${i+1} de ${fechas.length}`;
+        try{
+          const r = await buscarImagen(disco, fechas[i]);
+          frames.push({fecha:r.fecha, img:r.img, vista:null, rejilla:r.rejilla, promedio:promedioPlaneta(r.rejilla)});
+        }catch(e){}
+      }
+    }
+  }catch(e){}
+  $('cargando').classList.remove('si');
+  if (frames.length < 2){ est.innerHTML = '<span class="aviso">No se pudieron cargar suficientes imágenes. Prueba otro disco u otra fecha.</span>'; return; }
+  tiempo.frames = frames; tiempo.k = 0; tiempo.pasoEnFrame = 0; tiempo.activo = true; tiempo.visible = true;
+  tiempo.min = Math.min(...frames.map(f => f.promedio)); tiempo.max = Math.max(...frames.map(f => f.promedio));
+  const a = frames[0], b = frames[frames.length-1], dif = Math.round((b.promedio - a.promedio) * 100);
+  est.textContent = `${frames.length} imágenes: de ${a.fecha} a ${b.fecha}. El promedio ${dif > 0 ? 'subió' : dif < 0 ? 'bajó' : 'quedó igual'} ${Math.abs(dif)} puntos.`;
+  hablar(`Máquina del tiempo: ${disco.nombre}, de ${a.fecha} a ${b.fecha}.`);
+  mostrarFrame(0);
+  tocar();
+}
+function salirTiempo(){ tiempo.activo = false; tiempo.visible = false; tiempo.frames = []; }
+function mostrarFrame(k){
+  const f = tiempo.frames[k]; if (!f) return;
+  tiempo.kVisible = k; imagenDatos = f.img; imagenVista = f.vista; rejilla = f.rejilla; fechaUsada = f.fecha;
+  const antes = k > 0 ? tiempo.frames[k-1].promedio : f.promedio, cambio = f.promedio - antes;
+  $('etiqueta').innerHTML = `<b>⏳ ${escapar(disco.nombre)}</b><br>${f.fecha} · imagen ${k+1} de ${tiempo.frames.length}`;
+  $('narracion').textContent = `${f.fecha}: promedio del planeta ${Math.round(f.promedio*100)}%` +
+    (k > 0 ? (Math.abs(cambio) < 0.005 ? ' (igual que antes)' : cambio > 0 ? ' (subió)' : ' (bajó)') : ' (inicio del viaje)');
+  if (narrador) hablar(`${f.fecha}. ${k > 0 ? (cambio > 0 ? 'Subió' : 'Bajó') : 'Inicio'}.`);
+  dibujar();
+}
+function tocarPasoTiempo(t, durPaso){
+  const k = tiempo.k, f = tiempo.frames[k];
+  if (tiempo.pasoEnFrame === 0){
+    // acorde de fondo: el promedio del planeta comparado con todo el viaje
+    const norma = (f.promedio - tiempo.min) / ((tiempo.max - tiempo.min) || 1), idx = Math.round(norma * 9);
+    nota(frecuencia(idx, -1), t, durPaso * PASOS_FRAME, 0.16, 'triangle');
+    nota(frecuencia(idx + 2, -1), t, durPaso * PASOS_FRAME, 0.10, 'sine');
+    nota(frecuencia(idx + 4, -1), t, durPaso * PASOS_FRAME, 0.08, 'sine');
+    setTimeout(() => { if (tiempo.activo) mostrarFrame(k); }, Math.max(0, (t - audio.currentTime) * 1000));
+  }
+  // melodía rápida: una de cada 4 columnas
+  tocarPaso(tiempo.pasoEnFrame * (COLUMNAS / PASOS_FRAME), t, durPaso, f.rejilla, false);
+  tiempo.pasoEnFrame++;
+  if (tiempo.pasoEnFrame >= PASOS_FRAME){
+    tiempo.pasoEnFrame = 0; tiempo.k = (k + 1) % tiempo.frames.length;
+  }
+}
+function dibujarGraficaTiempo(){
+  const fr = tiempo.frames, x0 = 40, x1 = W - 40, y0 = H - 70, y1 = H - 18;
+  ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(20, y0 - 22, W - 40, y1 - y0 + 34);
+  const X = i => x0 + i * (x1 - x0) / (fr.length - 1);
+  const Y = v => y1 - (v - tiempo.min) / ((tiempo.max - tiempo.min) || 1) * (y1 - y0);
+  ctx.strokeStyle = '#2ee6ff'; ctx.lineWidth = 2; ctx.beginPath();
+  fr.forEach((f, i) => i ? ctx.lineTo(X(i), Y(f.promedio)) : ctx.moveTo(X(i), Y(f.promedio))); ctx.stroke();
+  fr.forEach((f, i) => { ctx.fillStyle = i === tiempo.kVisible ? '#ff4fa3' : '#2ee6ff'; ctx.beginPath(); ctx.arc(X(i), Y(f.promedio), i === tiempo.kVisible ? 6 : 3, 0, 7); ctx.fill(); });
+  ctx.fillStyle = '#fff6e8'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Promedio del planeta', 30, y0 - 8);
+  ctx.textAlign = 'right'; ctx.fillText(`${fr[0].fecha} → ${fr[fr.length-1].fecha}`, W - 30, y0 - 8);
 }
 
 // ---------- 6. EL SONIDO (Web Audio API) ----------
@@ -533,8 +656,8 @@ function sonidoEvento(cat, t){
 }
 
 // Toca una columna del mapa
-function tocarPaso(c, t, durPaso){
-  const d = disco, col = rejilla.celdas[c];
+function tocarPaso(c, t, durPaso, rej = rejilla, conEv = conEventos){
+  const d = disco, col = rej.celdas[c];
   // golpecito de ritmo (como un reloj)
   ruido(t, 0.03, c % 4 === 0 ? 0.12 : 0.05, 'highpass', 7000);
   if (col.cobertura > 0.04){
@@ -553,7 +676,7 @@ function tocarPaso(c, t, durPaso){
     }
   }
   // eventos naturales en esta columna
-  if (conEventos && eventosPorColumna[c]){
+  if (conEv && eventosPorColumna[c]){
     eventosPorColumna[c].slice(0,3).forEach((e,k) => sonidoEvento(e.cat, t + k*durPaso/3));
   }
   historialPasos.push({c, t});
@@ -563,10 +686,13 @@ function tocarPaso(c, t, durPaso){
 function programador(){
   const durPaso = 60 / $('tempo').value / 2;                 // corcheas
   while (tiempoSiguiente < audio.currentTime + 0.12){
-    tocarPaso(paso, tiempoSiguiente, durPaso);
-    anunciarPaso(paso);
+    if (tiempo.activo) tocarPasoTiempo(tiempoSiguiente, durPaso);
+    else {
+      tocarPaso(paso, tiempoSiguiente, durPaso);
+      anunciarPaso(paso);
+      paso = (paso + 1) % COLUMNAS;
+    }
     tiempoSiguiente += durPaso;
-    paso = (paso + 1) % COLUMNAS;
   }
 }
 function tocar(){
@@ -642,8 +768,10 @@ function dibujar(){
     ctx.fillStyle = grad; ctx.fillRect(x-20,0,20+W/COLUMNAS,H);
     ctx.strokeStyle = '#ff4fa3'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x+W/COLUMNAS,0); ctx.lineTo(x+W/COLUMNAS,H); ctx.stroke();
   }
+  // gráfica de la máquina del tiempo
+  if (tiempo.frames.length > 1 && tiempo.visible) dibujarGraficaTiempo();
   // eventos
-  if (conEventos){
+  if (conEventos && !tiempo.visible){
     ctx.font = '14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     eventos.forEach(e => {
       const x = (e.lon+180)/360*W, y = (90-e.lat)/180*H;
@@ -683,6 +811,7 @@ $('eicCargar').onclick = () => ponerDiscoEIC($('eicSel').value);
 $('btnEventos').onclick = e => { conEventos = !conEventos; e.currentTarget.setAttribute('aria-pressed', conEventos); dibujar(); };
 $('btnNarrador').onclick = e => { narrador = !narrador; e.currentTarget.setAttribute('aria-pressed', narrador); if (!narrador && 'speechSynthesis' in window) speechSynthesis.cancel(); else hablar('Narrador activado'); };
 $('btnDescribir').onclick = describir;
+$('btnTiempo').onclick = iniciarTiempo;
 document.addEventListener('keydown', e => {
   if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
   if (e.code === 'Space'){ e.preventDefault(); tocando ? pausar() : tocar(); }
@@ -691,6 +820,7 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft'){ $('tempo').value = Math.max(60, +$('tempo').value-10); $('tempoTxt').textContent = $('tempo').value; }
   else if (e.key.toLowerCase() === 'd') describir();
   else if (e.key.toLowerCase() === 'n') $('btnNarrador').click();
+  else if (e.key.toLowerCase() === 't') $('btnTiempo').click();
 });
 
 // ---------- ¡ARRANCAMOS! ----------
